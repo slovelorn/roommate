@@ -17,7 +17,7 @@ public class DataStorage {
 
     private static final String URL = "jdbc:mysql://localhost:3306/roommate?serverTimezone=UTC";
     private static final String ID = "root";   // 자신의 MySQL 아이디로 변경
-    private static final String PW = "1234!";   // 자신의 MySQL 비밀번호로 변경
+    private static final String PW = "1234";   // 자신의 MySQL 비밀번호로 변경
 
     /** JDBC 드라이버를 로드하고 데이터베이스와 연결한다. */
     private static Connection getConnection() throws ClassNotFoundException, SQLException {
