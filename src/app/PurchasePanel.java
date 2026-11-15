@@ -7,6 +7,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.BorderFactory;
@@ -20,13 +21,13 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.table.DefaultTableModel;
 
+import llm.NlInputPanel;
+
 /**
  * [구매 기록] 탭 (콘솔 메뉴 3, 4번).
- * - 위 : 구매 기록 입력 폼 (품목·구매자는 콤보박스로 선택)
+ * - 맨 위 : 말로 입력하기 (LLM이 문장을 분석해 아래 입력 폼을 자동으로 채움, llm 패키지)
+ * - 가운데 : 구매 기록 입력 폼 (품목·구매자는 콤보박스로 선택)
  * - 아래 : 전체 구매 기록 표 (JTable, 열 제목을 클릭하면 정렬)
- *
- * 다음 단계(LLM 자연어 입력)에서는 입력 폼 맨 위에 [문장 입력칸 + 자동 채우기 버튼] 한 줄을 추가하고,
- * 분석 결과로 fillForm(...) 을 호출하면 된다.
  */
 public class PurchasePanel extends JPanel implements Refreshable {
 
@@ -39,6 +40,7 @@ public class PurchasePanel extends JPanel implements Refreshable {
     private JTextField dateField = new JTextField(10);
 
     private DefaultTableModel tableModel;
+    private NlInputPanel nlInputPanel;
 
     public PurchasePanel(AppData data, Runnable onDataChanged) {
         this.data = data;
@@ -47,12 +49,30 @@ public class PurchasePanel extends JPanel implements Refreshable {
         setLayout(new BorderLayout(0, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        add(createFormPanel(), BorderLayout.NORTH);
+        // 말로 입력하기 : 분석 결과는 저장하지 않고 아래 입력 폼만 채운다
+        nlInputPanel = new NlInputPanel(
+                () -> getItemNames(),
+                () -> data.getMembers(),
+                p -> fillForm(p.item(), p.buyer(), p.price(), p.date()));
+
+        JPanel inputArea = new JPanel(new BorderLayout(0, 5));
+        inputArea.add(nlInputPanel, BorderLayout.NORTH);
+        inputArea.add(createFormPanel(), BorderLayout.CENTER);
+
+        add(inputArea, BorderLayout.NORTH);
         add(createTablePanel(), BorderLayout.CENTER);
     }
 
+    /** 등록된 품목 이름 목록 (LLM에게 이 중에서 고르도록 알려줌) */
+    private List<String> getItemNames() {
+        List<String> names = new ArrayList<>();
+        for (Item item : data.getItems()) {
+            names.add(item.getName());
+        }
+        return names;
+    }
+
     private JPanel createFormPanel() {
-        // LLM 입력 줄을 추가할 때는 GridLayout(3, 1)로 바꾸고 맨 위에 한 줄을 add 하면 된다.
         JPanel form = new JPanel(new GridLayout(2, 1));
         form.setBorder(BorderFactory.createTitledBorder("구매 기록 입력"));
 
@@ -142,18 +162,27 @@ public class PurchasePanel extends JPanel implements Refreshable {
         refreshTable();
         costField.setText("");
         dateField.setText(LocalDate.now().toString());
+        nlInputPanel.clear();
         onDataChanged.run();
     }
 
     /**
      * 입력 폼을 주어진 값으로 채운다. (사용자가 확인 후 [구매 기록 추가]를 눌러야 저장됨)
-     * 다음 단계에서 LLM이 자연어 문장을 분석한 결과를 폼에 넣을 때 사용한다.
+     * LLM이 알아내지 못한 값(null)은 건드리지 않고 그대로 둔다.
      */
-    public void fillForm(String itemName, String buyer, int cost, LocalDate date) {
-        itemCombo.setSelectedItem(itemName);
-        buyerCombo.setSelectedItem(buyer);
-        costField.setText(String.valueOf(cost));
-        dateField.setText(date.toString());
+    public void fillForm(String itemName, String buyer, Integer cost, LocalDate date) {
+        if (itemName != null) {
+            itemCombo.setSelectedItem(itemName);
+        }
+        if (buyer != null) {
+            buyerCombo.setSelectedItem(buyer);
+        }
+        if (cost != null) {
+            costField.setText(String.valueOf(cost));
+        }
+        if (date != null) {
+            dateField.setText(date.toString());
+        }
     }
 
     @Override
