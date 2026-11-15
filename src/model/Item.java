@@ -1,4 +1,4 @@
-package app;
+package model;
 
 /**
  * 공동으로 사용하는 생필품 품목을 나타내는 클래스.

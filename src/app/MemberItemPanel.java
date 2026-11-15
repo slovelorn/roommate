@@ -15,6 +15,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 
+import model.Item;
+
 /**
  * [룸메이트·품목] 탭 (콘솔 메뉴 1, 2번).
  * 화면을 좌우로 나누어 왼쪽은 룸메이트, 오른쪽은 공동 생필품 품목을 등록하고 목록(JList)으로 보여준다.

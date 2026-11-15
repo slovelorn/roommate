@@ -1,4 +1,4 @@
-package app;
+package db;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -8,6 +8,9 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+
+import model.Item;
+import model.Purchase;
 
 /**
  * 룸메이트 / 품목 / 구매기록을 MySQL 데이터베이스에 저장하고 불러오는 클래스.

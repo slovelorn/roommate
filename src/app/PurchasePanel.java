@@ -22,6 +22,8 @@ import javax.swing.JTextField;
 import javax.swing.table.DefaultTableModel;
 
 import llm.NlInputPanel;
+import model.Item;
+import model.Purchase;
 
 /**
  * [구매 기록] 탭 (콘솔 메뉴 3, 4번).

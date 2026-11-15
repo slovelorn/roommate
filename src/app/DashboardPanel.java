@@ -21,6 +21,11 @@ import javax.swing.JTextArea;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
+import logic.ConsumptionPredictor;
+import logic.SettlementEngine;
+import model.Item;
+import model.Purchase;
+
 /**
  * [한눈에 보기] 탭 (프로그램 첫 화면).
  * 다른 탭의 핵심 내용을 2 x 2 칸에 요약해서 보여준다.

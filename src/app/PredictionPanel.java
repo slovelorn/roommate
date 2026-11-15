@@ -16,6 +16,9 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import logic.ConsumptionPredictor;
+import model.Item;
+
 /**
  * [소진 예측] 탭 (콘솔 메뉴 5번).
  * 품목을 선택하고 [예측하기]를 누르면 단순 평균 / 가중 이동평균 기반 다음 구매 예상일을 보여준다.

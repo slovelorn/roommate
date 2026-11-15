@@ -5,6 +5,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import db.DataStorage;
+import model.Item;
+import model.Purchase;
+
 /**
  * 프로그램 전체에서 함께 사용하는 데이터(룸메이트 / 품목 / 구매기록)를 보관하는 클래스.
  * 모든 탭(패널)이 같은 AppData 객체를 공유하므로, 한 탭에서 등록한 내용을 다른 탭에서도 볼 수 있다.

@@ -1,4 +1,4 @@
-package app;
+package logic;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
+
+import model.Purchase;
 
 /**
  * 공동 지출을 정산하는 엔진.

@@ -14,6 +14,9 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 
+import logic.SettlementEngine;
+import model.Purchase;
+
 /**
  * [정산] 탭 (콘솔 메뉴 6번).
  * 개인별 지출 현황(1/N 기준)과 최소 송금 정산 결과를 보여준다.
