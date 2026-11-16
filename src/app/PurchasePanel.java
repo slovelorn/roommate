@@ -26,10 +26,10 @@ import model.Item;
 import model.Purchase;
 
 /**
- * [구매 기록] 탭 (콘솔 메뉴 3, 4번).
+ * [구매 기록] 탭.
  * - 맨 위 : 말로 입력하기 (LLM이 문장을 분석해 아래 입력 폼을 자동으로 채움, llm 패키지)
  * - 가운데 : 구매 기록 입력 폼 (품목·구매자는 콤보박스로 선택)
- * - 아래 : 전체 구매 기록 표 (JTable, 열 제목을 클릭하면 정렬)
+ * - 아래 : 전체 구매 기록 표 (JTable, 열 제목을 클릭하면 정렬) + 선택 삭제
  */
 public class PurchasePanel extends JPanel implements Refreshable {
 
@@ -42,6 +42,8 @@ public class PurchasePanel extends JPanel implements Refreshable {
     private JTextField dateField = new JTextField(10);
 
     private DefaultTableModel tableModel;
+    private JTable table;
+    private List<Purchase> rowPurchases = new ArrayList<>(); // 표의 각 행에 해당하는 구매 기록 (삭제 시 사용)
     private NlInputPanel nlInputPanel;
 
     public PurchasePanel(AppData data, Runnable onDataChanged) {
@@ -105,7 +107,7 @@ public class PurchasePanel extends JPanel implements Refreshable {
     }
 
     private JPanel createTablePanel() {
-        String[] columns = {"구매일", "품목", "구매자", "금액(원)"};
+        String[] columns = {"구매일", "품목", "구매자", "금액(원)", "정산"};
         tableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -117,12 +119,24 @@ public class PurchasePanel extends JPanel implements Refreshable {
                 return column == 3 ? Integer.class : String.class; // 금액은 숫자로 정렬되도록
             }
         };
-        JTable table = new JTable(tableModel);
+        table = new JTable(tableModel);
         table.setAutoCreateRowSorter(true); // 열 제목 클릭 시 정렬
+
+        JButton deleteButton = new JButton("선택 삭제");
+        deleteButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                deleteSelectedPurchases();
+            }
+        });
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        bottom.add(new JLabel("Ctrl·Shift + 클릭으로 여러 건 선택  "));
+        bottom.add(deleteButton);
 
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createTitledBorder("전체 구매 기록 (날짜순)"));
         panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        panel.add(bottom, BorderLayout.SOUTH);
         return panel;
     }
 
@@ -165,6 +179,37 @@ public class PurchasePanel extends JPanel implements Refreshable {
         costField.setText("");
         dateField.setText(LocalDate.now().toString());
         nlInputPanel.clear();
+        onDataChanged.run();
+    }
+
+    /** 표에서 선택한 구매 기록을 삭제한다. 이미 정산된 기록은 정산 내역 보존을 위해 삭제할 수 없다. */
+    private void deleteSelectedPurchases() {
+        int[] selectedRows = table.getSelectedRows();
+        if (selectedRows.length == 0) {
+            JOptionPane.showMessageDialog(this, "삭제할 구매 기록을 표에서 선택하세요.");
+            return;
+        }
+
+        List<Purchase> targets = new ArrayList<>();
+        for (int viewRow : selectedRows) {
+            int modelRow = table.convertRowIndexToModel(viewRow); // 열 정렬 상태여도 올바른 행을 찾기 위함
+            Purchase p = rowPurchases.get(modelRow);
+            if (p.isSettled()) {
+                JOptionPane.showMessageDialog(this,
+                        "이미 정산이 완료된 기록은 삭제할 수 없습니다.\n(" + p.getDate() + " " + p.getItemName()
+                                + ", " + p.getSettledDate() + " 정산)");
+                return;
+            }
+            targets.add(p);
+        }
+
+        int answer = JOptionPane.showConfirmDialog(this,
+                "선택한 구매 기록 " + targets.size() + "건을 삭제할까요?", "삭제 확인", JOptionPane.YES_NO_OPTION);
+        if (answer != JOptionPane.YES_OPTION) {
+            return;
+        }
+        data.removePurchases(targets);
+        refreshTable();
         onDataChanged.run();
     }
 
@@ -216,9 +261,10 @@ public class PurchasePanel extends JPanel implements Refreshable {
 
     private void refreshTable() {
         tableModel.setRowCount(0);
-        List<Purchase> sorted = data.getPurchasesSortedByDate();
-        for (Purchase p : sorted) {
-            tableModel.addRow(new Object[]{p.getDate().toString(), p.getItemName(), p.getBuyer(), p.getCost()});
+        rowPurchases = data.getPurchasesSortedByDate();
+        for (Purchase p : rowPurchases) {
+            String settled = p.isSettled() ? p.getSettledDate() + " 정산" : "미정산";
+            tableModel.addRow(new Object[]{p.getDate().toString(), p.getItemName(), p.getBuyer(), p.getCost(), settled});
         }
     }
 }

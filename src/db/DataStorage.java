@@ -94,7 +94,7 @@ public class DataStorage {
     }
 
     // ---------- 구매 기록 ----------
-    // 컬럼: 품목명(item_name), 구매자(buyer), 금액(cost), 날짜(purchase_date)
+    // 컬럼: 품목명(item_name), 구매자(buyer), 금액(cost), 날짜(purchase_date), 정산 완료일(settled_date, 미정산이면 null)
 
     public static void savePurchases(List<Purchase> purchases) {
         try (Connection conn = getConnection();
@@ -102,9 +102,10 @@ public class DataStorage {
             conn.setAutoCommit(false); // 저장 도중 오류가 나면 기존 데이터를 유지
             stmt.executeUpdate("delete from purchase");
             for (Purchase p : purchases) {
-                stmt.executeUpdate("insert into purchase(item_name, buyer, cost, purchase_date) values('"
+                String settled = p.isSettled() ? "'" + p.getSettledDate() + "'" : "null";
+                stmt.executeUpdate("insert into purchase(item_name, buyer, cost, purchase_date, settled_date) values('"
                         + escape(p.getItemName()) + "','" + escape(p.getBuyer()) + "',"
-                        + p.getCost() + ",'" + p.getDate() + "')");
+                        + p.getCost() + ",'" + p.getDate() + "'," + settled + ")");
             }
             conn.commit();
         } catch (ClassNotFoundException | SQLException e) {
@@ -117,13 +118,15 @@ public class DataStorage {
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement();
              ResultSet result = stmt.executeQuery(
-                     "select item_name, buyer, cost, purchase_date from purchase order by id")) {
+                     "select item_name, buyer, cost, purchase_date, settled_date from purchase order by id")) {
             while (result.next()) {
                 String itemName = result.getString("item_name");
                 String buyer = result.getString("buyer");
                 int cost = result.getInt("cost");
                 LocalDate date = LocalDate.parse(result.getString("purchase_date"));
-                purchases.add(new Purchase(itemName, buyer, cost, date));
+                String settledText = result.getString("settled_date"); // 미정산이면 null
+                LocalDate settledDate = (settledText == null) ? null : LocalDate.parse(settledText);
+                purchases.add(new Purchase(itemName, buyer, cost, date, settledDate));
             }
         } catch (ClassNotFoundException | SQLException e) {
             System.out.println("구매 기록 불러오기 중 오류: " + e.getMessage());

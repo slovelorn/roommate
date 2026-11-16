@@ -25,5 +25,6 @@ create table if not exists purchase (
   buyer varchar(255) NOT NULL,
   cost int NOT NULL,
   purchase_date date NOT NULL,
+  settled_date date NULL,          -- 정산 완료일 (아직 정산되지 않았으면 NULL)
   primary key (id)
 );

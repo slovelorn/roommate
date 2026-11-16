@@ -44,7 +44,7 @@ public class MainFrame extends JFrame {
         tabs.addTab("룸메이트·품목", new MemberItemPanel(data, onDataChanged));
         tabs.addTab("구매 기록", new PurchasePanel(data, onDataChanged));
         tabs.addTab("소진 예측", new PredictionPanel(data));
-        tabs.addTab("정산", new SettlementPanel(data));
+        tabs.addTab("정산", new SettlementPanel(data, onDataChanged));
 
         // 탭을 바꿀 때마다 해당 탭을 최신 데이터로 갱신
         tabs.addChangeListener(new ChangeListener() {

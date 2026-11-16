@@ -29,7 +29,7 @@ import model.Purchase;
 /**
  * [한눈에 보기] 탭 (프로그램 첫 화면).
  * 다른 탭의 핵심 내용을 2 x 2 칸에 요약해서 보여준다.
- * - 현황 요약 / 소진 임박 품목 (D-day순) / 최근 구매 5건 / 정산 요약
+ * - 현황 요약 / 소진 임박 품목 (D-day순) / 최근 구매 5건 / 정산 요약 (미정산 기록 기준)
  */
 public class DashboardPanel extends JPanel implements Refreshable {
 
@@ -63,7 +63,7 @@ public class DashboardPanel extends JPanel implements Refreshable {
         grid.add(wrap("현황 요약", summaryArea));
         grid.add(wrap("소진 임박 품목 (D-day순)", predictionTable));
         grid.add(wrap("최근 구매 " + RECENT_COUNT + "건", recentTable));
-        grid.add(wrap("정산 요약 (최소 송금)", settlementArea));
+        grid.add(wrap("정산 요약 (미정산 기록, 최소 송금)", settlementArea));
 
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton refreshButton = new JButton("새로고침");
@@ -121,7 +121,17 @@ public class DashboardPanel extends JPanel implements Refreshable {
         sb.append("구매 기록 ").append(data.getPurchases().size()).append("건\n\n");
         sb.append("이번 달(").append(now.getMonthValue()).append("월) 지출 : ")
           .append(String.format("%,d", thisMonth)).append("원\n");
-        sb.append("전체 누적 지출 : ").append(String.format("%,d", total)).append("원");
+        sb.append("전체 누적 지출 : ").append(String.format("%,d", total)).append("원\n\n");
+
+        int unsettledTotal = 0;
+        List<Purchase> unsettled = data.getUnsettledPurchases();
+        for (Purchase p : unsettled) {
+            unsettledTotal += p.getCost();
+        }
+        LocalDate lastSettled = data.getLastSettledDate();
+        sb.append("미정산 : ").append(unsettled.size()).append("건 / ")
+          .append(String.format("%,d", unsettledTotal)).append("원\n");
+        sb.append("마지막 정산일 : ").append(lastSettled == null ? "없음" : lastSettled.toString());
         summaryArea.setText(sb.toString());
     }
 
@@ -205,20 +215,20 @@ public class DashboardPanel extends JPanel implements Refreshable {
 
     private void refreshSettlement() {
         List<String> members = data.getMembers();
-        List<Purchase> purchases = data.getPurchases();
+        List<Purchase> unsettled = data.getUnsettledPurchases(); // 정산 완료된 기록은 제외
 
         if (members.size() < 2) {
             settlementArea.setText("룸메이트가 2명 이상 등록되면 정산 결과가 표시됩니다.");
             return;
         }
-        if (purchases.isEmpty()) {
-            settlementArea.setText("정산할 구매 기록이 없습니다.");
+        if (unsettled.isEmpty()) {
+            settlementArea.setText("정산할 구매 기록이 없습니다. (모두 정산 완료)");
             return;
         }
 
-        List<SettlementEngine.Transaction> transactions = SettlementEngine.settleMinCashFlow(purchases, members);
+        List<SettlementEngine.Transaction> transactions = SettlementEngine.settleMinCashFlow(unsettled, members);
         if (transactions.isEmpty()) {
-            settlementArea.setText("이미 모두 정산된 상태입니다.");
+            settlementArea.setText("보낼 금액이 없습니다. (모두 같은 금액을 부담한 상태)");
             return;
         }
         StringBuilder sb = new StringBuilder();
