@@ -134,6 +134,10 @@ public class SettlementPanel extends JPanel implements Refreshable {
             return;
         }
         int count = data.settleAll(LocalDate.now());
+        if (count < 0) {
+            settle(); // DB 연결 문제로 처리하지 못함 (안내는 MainFrame에서 표시)
+            return;
+        }
         JOptionPane.showMessageDialog(this, count + "건을 정산 완료로 처리했습니다.");
         settle();
         onDataChanged.run();

@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Consumer;
 
 import db.DataStorage;
 import model.Item;
@@ -13,18 +14,93 @@ import model.Purchase;
  * 프로그램 전체에서 함께 사용하는 데이터(룸메이트 / 품목 / 구매기록)를 보관하는 클래스.
  * 모든 탭(패널)이 같은 AppData 객체를 공유하므로, 한 탭에서 등록한 내용을 다른 탭에서도 볼 수 있다.
  * 데이터를 추가·삭제·정산 처리할 때마다 DataStorage를 통해 즉시 DB에 저장한다.
+ *
+ * 시작할 때 DB에 연결하지 못했다면(loaded = false) 빈 목록으로 시작하고, 그 상태에서는 데이터를 바꾸지 않는다.
+ * (빈 목록을 그대로 저장해서 DB에 있던 데이터를 지워 버리는 일을 막기 위함)
+ * 나중에 연결되면 DB 데이터를 먼저 다시 불러오고, 사용자가 최신 화면에서 작업을 다시 하도록 안내한다.
  */
 public class AppData {
 
-    private List<String> members;
-    private List<Item> items;
-    private List<Purchase> purchases;
+    private List<String> members = new ArrayList<>();
+    private List<Item> items = new ArrayList<>();
+    private List<Purchase> purchases = new ArrayList<>();
+
+    private boolean loaded;      // DB에서 데이터를 정상적으로 불러왔는지
+    private String loadError;    // 불러오지 못했을 때의 원인
+
+    private Runnable onReloaded;          // DB 데이터를 새로 불러왔을 때 화면에 알리는 동작
+    private Consumer<String> onBlocked;   // DB 연결이 없어 변경을 막았을 때 화면에 알리는 동작 (원인 전달)
 
     /** 생성 시 DB에 저장된 데이터를 불러온다. */
     public AppData() {
+        reload();
+    }
+
+    /**
+     * DB에서 데이터를 다시 불러온다. 연결에 실패하면 현재 메모리의 데이터는 그대로 둔다.
+     * @return 불러오기 성공 여부
+     */
+    public boolean reload() {
+        loadError = DataStorage.checkConnection();
+        if (loadError != null) {
+            loaded = false;
+            return false;
+        }
         members = DataStorage.loadMembers();
         items = DataStorage.loadItems();
         purchases = DataStorage.loadPurchases();
+        loaded = true;
+        return true;
+    }
+
+    public boolean isLoaded() {
+        return loaded;
+    }
+
+    public String getLoadError() {
+        return loadError;
+    }
+
+    public void setOnReloaded(Runnable onReloaded) {
+        this.onReloaded = onReloaded;
+    }
+
+    public void setOnBlocked(Consumer<String> onBlocked) {
+        this.onBlocked = onBlocked;
+    }
+
+    /**
+     * 데이터를 바꿔도 되는 상태인지 확인한다.
+     * - 정상적으로 불러온 상태면 true
+     * - 시작할 때 불러오지 못한 상태면 DB에서 다시 불러와 보고, 이번 작업은 중단(false)한다.
+     *   (불러오기에 성공하면 화면을 최신 데이터로 바꾼 뒤 작업을 다시 하도록 안내)
+     */
+    private boolean readyToChange() {
+        if (loaded) {
+            return true;
+        }
+        if (reload()) {
+            if (onReloaded != null) {
+                onReloaded.run();
+            }
+        } else if (onBlocked != null) {
+            onBlocked.accept(loadError);
+        }
+        return false;
+    }
+
+    /**
+     * 현재 메모리의 데이터 전체를 DB에 다시 저장한다. (저장 실패 후 연결이 복구됐을 때 사용)
+     * @return 세 가지 모두 저장에 성공했는지
+     */
+    public boolean saveAll() {
+        if (!loaded) {
+            return false; // DB 데이터를 불러오지 못한 상태에서 덮어쓰면 기존 데이터가 사라지므로 저장하지 않음
+        }
+        boolean ok = DataStorage.saveMembers(members);
+        ok = DataStorage.saveItems(items) && ok;
+        ok = DataStorage.savePurchases(purchases) && ok;
+        return ok;
     }
 
     public List<String> getMembers() {
@@ -119,43 +195,63 @@ public class AppData {
     }
 
     // ---------- 추가 (추가 즉시 DB에 저장) ----------
+    // 반환값 : 변경이 적용되었으면 true, DB 연결 문제로 막혔으면 false (입력 내용을 지우지 않기 위해 사용)
 
-    public void addMember(String name) {
+    public boolean addMember(String name) {
+        if (!readyToChange()) {
+            return false;
+        }
         members.add(name);
         DataStorage.saveMembers(members);
+        return true;
     }
 
-    public void addItem(String name) {
+    public boolean addItem(String name) {
+        if (!readyToChange()) {
+            return false;
+        }
         items.add(new Item(name));
         DataStorage.saveItems(items);
+        return true;
     }
 
-    public void addPurchase(Purchase purchase) {
+    public boolean addPurchase(Purchase purchase) {
+        if (!readyToChange()) {
+            return false;
+        }
         purchases.add(purchase);
         DataStorage.savePurchases(purchases);
+        return true;
     }
 
     // ---------- 삭제 (삭제 즉시 DB에 저장) ----------
     // 룸메이트나 품목을 삭제해도 그와 관련된 구매 기록은 지우지 않는다. (기록 보관 및 정산 금액 보존)
 
-    public void removeMember(String name) {
-        members.remove(name);
-        DataStorage.saveMembers(members);
-    }
-
-    public void removeItem(String name) {
-        for (int i = 0; i < items.size(); i++) {
-            if (items.get(i).getName().equals(name)) {
-                items.remove(i);
-                break;
-            }
+    public boolean removeMembers(List<String> names) {
+        if (!readyToChange()) {
+            return false;
         }
-        DataStorage.saveItems(items);
+        members.removeAll(names);
+        DataStorage.saveMembers(members);
+        return true;
     }
 
-    public void removePurchases(List<Purchase> targets) {
+    public boolean removeItems(List<String> names) {
+        if (!readyToChange()) {
+            return false;
+        }
+        items.removeIf(item -> names.contains(item.getName()));
+        DataStorage.saveItems(items);
+        return true;
+    }
+
+    public boolean removePurchases(List<Purchase> targets) {
+        if (!readyToChange()) {
+            return false;
+        }
         purchases.removeAll(targets);
         DataStorage.savePurchases(purchases);
+        return true;
     }
 
     // ---------- 정산 완료 처리 ----------
@@ -163,9 +259,12 @@ public class AppData {
     /**
      * 현재 미정산인 구매 기록을 모두 정산 완료로 표시한다.
      * 이후의 정산 금액 계산에서는 이 기록들이 제외된다.
-     * @return 정산 완료로 처리한 기록 수
+     * @return 정산 완료로 처리한 기록 수 (DB 연결 문제로 처리하지 못했으면 -1)
      */
     public int settleAll(LocalDate settledDate) {
+        if (!readyToChange()) {
+            return -1;
+        }
         int count = 0;
         for (Purchase p : purchases) {
             if (!p.isSettled()) {
