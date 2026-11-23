@@ -7,10 +7,12 @@ import java.awt.FlowLayout;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -21,15 +23,16 @@ import javax.swing.JTextArea;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 
+import logic.BuyerRecommender;
 import logic.ConsumptionPredictor;
 import logic.SettlementEngine;
-import model.Item;
 import model.Purchase;
 
 /**
  * [한눈에 보기] 탭 (프로그램 첫 화면).
  * 다른 탭의 핵심 내용을 2 x 2 칸에 요약해서 보여준다.
- * - 현황 요약 / 소진 임박 품목 (D-day순) / 최근 구매 5건 / 정산 요약 (미정산 기록 기준)
+ * - 현황 요약 / 소진 임박 품목 + 추천 담당자 (D-day순) / 최근 구매 5건 / 정산 요약 (미정산 기록 기준)
+ * 추천 담당자 칸에 마우스를 올리면 추천 이유가 표시된다.
  */
 public class DashboardPanel extends JPanel implements Refreshable {
 
@@ -40,6 +43,7 @@ public class DashboardPanel extends JPanel implements Refreshable {
 
     private JTextArea summaryArea = new JTextArea();
     private DefaultTableModel predictionModel;
+    private List<String> recommendReasons = new ArrayList<>(); // 각 행의 추천 이유 (툴팁 표시용)
     private DefaultTableModel recentModel;
     private JTextArea settlementArea = new JTextArea();
 
@@ -52,16 +56,25 @@ public class DashboardPanel extends JPanel implements Refreshable {
         summaryArea.setEditable(false);
         settlementArea.setEditable(false);
 
-        predictionModel = createTableModel(new String[]{"품목", "예상 소진일", "D-day", "상태"});
+        predictionModel = createTableModel(new String[]{"품목", "예상 소진일", "D-day", "상태", "추천 담당자"});
         recentModel = createTableModel(new String[]{"구매일", "품목", "구매자", "금액(원)"});
 
-        JTable predictionTable = new JTable(predictionModel);
+        JTable predictionTable = new JTable(predictionModel) {
+            @Override
+            public String getToolTipText(MouseEvent e) {
+                int row = rowAtPoint(e.getPoint());
+                if (row >= 0 && row < recommendReasons.size()) {
+                    return "추천 이유: " + recommendReasons.get(row); // 마우스를 올리면 추천 이유 표시
+                }
+                return null;
+            }
+        };
         predictionTable.setDefaultRenderer(Object.class, new WarningRowRenderer());
         JTable recentTable = new JTable(recentModel);
 
         JPanel grid = new JPanel(new GridLayout(2, 2, 10, 10));
         grid.add(wrap("현황 요약", summaryArea));
-        grid.add(wrap("소진 임박 품목 (D-day순)", predictionTable));
+        grid.add(wrap("소진 임박 품목 · 다음 구매 추천 (D-day순)", predictionTable));
         grid.add(wrap("최근 구매 " + RECENT_COUNT + "건", recentTable));
         grid.add(wrap("정산 요약 (미정산 기록, 최소 송금)", settlementArea));
 
@@ -139,17 +152,19 @@ public class DashboardPanel extends JPanel implements Refreshable {
 
     private void refreshPrediction() {
         predictionModel.setRowCount(0);
+        recommendReasons.clear();
 
-        List<Object[]> predictedRows = new ArrayList<>();
-        List<Long> ddays = new ArrayList<>();
-        List<Object[]> lackRows = new ArrayList<>();
+        // AppData가 소진이 가까운 순으로 정렬한 품목과, 그 순서로 배정한 추천 담당자를 사용
+        Map<String, BuyerRecommender.Recommendation> recommendations = data.getRecommendations();
 
-        for (Item item : data.getItems()) {
-            String name = item.getName();
+        for (String name : data.getItemNamesByUrgency()) {
+            BuyerRecommender.Recommendation rec = recommendations.get(name);
+            String member = (rec == null) ? "-" : rec.member;
+            recommendReasons.add(rec == null ? "룸메이트를 먼저 등록하세요." : rec.reason);
+
             List<LocalDate> dates = data.getSortedDates(name);
-
             if (dates.size() < 2) {
-                lackRows.add(new Object[]{name, "-", "-", "기록 부족 (" + dates.size() + "건)"});
+                predictionModel.addRow(new Object[]{name, "-", "-", "기록 부족 (" + dates.size() + "건)", member});
                 continue;
             }
 
@@ -164,22 +179,8 @@ public class DashboardPanel extends JPanel implements Refreshable {
             } else {
                 status = "여유";
             }
-
-            // D-day가 가까운 순서가 되도록 알맞은 위치에 삽입
-            int index = 0;
-            while (index < ddays.size() && ddays.get(index) <= dday) {
-                index++;
-            }
-            ddays.add(index, dday);
-            predictedRows.add(index, new Object[]{name, predicted.toString(),
-                    PredictionPanel.formatDday(dday), status});
-        }
-
-        for (Object[] row : predictedRows) {
-            predictionModel.addRow(row);
-        }
-        for (Object[] row : lackRows) {   // 예측할 수 없는 품목은 맨 아래에
-            predictionModel.addRow(row);
+            predictionModel.addRow(new Object[]{name, predicted.toString(),
+                    PredictionPanel.formatDday(dday), status, member});
         }
     }
 

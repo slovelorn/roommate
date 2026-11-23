@@ -16,12 +16,14 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 
+import logic.BuyerRecommender;
 import logic.ConsumptionPredictor;
 import model.Item;
 
 /**
  * [소진 예측] 탭 (콘솔 메뉴 5번).
- * 품목을 선택하고 [예측하기]를 누르면 단순 평균 / 가중 이동평균 기반 다음 구매 예상일을 보여준다.
+ * 품목을 선택하고 [예측하기]를 누르면 단순 평균 / 가중 이동평균 기반 다음 구매 예상일과
+ * 다음 구매 담당자 추천(지출 균형 + 품목 순번)을 보여준다.
  */
 public class PredictionPanel extends JPanel implements Refreshable {
 
@@ -32,6 +34,7 @@ public class PredictionPanel extends JPanel implements Refreshable {
     private JLabel simpleLabel = new JLabel(" ");
     private JLabel weightedLabel = new JLabel(" ");
     private JLabel warningLabel = new JLabel(" ");
+    private JLabel recommendLabel = new JLabel(" ");
 
     public PredictionPanel(AppData data) {
         this.data = data;
@@ -56,13 +59,16 @@ public class PredictionPanel extends JPanel implements Refreshable {
         weightedLabel.setFont(resultFont);
         warningLabel.setFont(resultFont.deriveFont(Font.BOLD));
         warningLabel.setForeground(Color.RED);
+        recommendLabel.setFont(resultFont.deriveFont(Font.BOLD));
+        recommendLabel.setForeground(new Color(0, 90, 170));
 
-        JPanel result = new JPanel(new GridLayout(4, 1, 0, 5));
+        JPanel result = new JPanel(new GridLayout(5, 1, 0, 5));
         result.setBorder(BorderFactory.createTitledBorder("소진 예측 결과"));
         result.add(countLabel);
         result.add(simpleLabel);
         result.add(weightedLabel);
         result.add(warningLabel);
+        result.add(recommendLabel);
 
         JPanel resultWrapper = new JPanel(new BorderLayout());
         resultWrapper.add(result, BorderLayout.NORTH);
@@ -81,6 +87,14 @@ public class PredictionPanel extends JPanel implements Refreshable {
 
         List<LocalDate> dates = data.getSortedDates(itemName);
         countLabel.setText(itemName + " 구매 기록 " + dates.size() + "건");
+
+        // 다음 구매 담당자 추천 (예측 가능 여부와 상관없이 표시, 한눈에 보기와 같은 결과)
+        BuyerRecommender.Recommendation rec = data.getRecommendations().get(itemName);
+        if (rec != null) {
+            recommendLabel.setText("다음 구매 추천 : " + rec.member + "  —  " + rec.reason);
+        } else {
+            recommendLabel.setText("다음 구매 추천 : 룸메이트를 먼저 등록하세요.");
+        }
 
         if (dates.size() < 2) {
             simpleLabel.setText("예측하려면 해당 품목의 구매 기록이 2건 이상 필요합니다.");
@@ -105,6 +119,7 @@ public class PredictionPanel extends JPanel implements Refreshable {
         simpleLabel.setText(" ");
         weightedLabel.setText(" ");
         warningLabel.setText(" ");
+        recommendLabel.setText(" ");
     }
 
     /** D-day 표시 형식 : 남음 → D-5, 오늘 → D-Day, 지남 → D+2 */

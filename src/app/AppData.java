@@ -4,9 +4,12 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import db.DataStorage;
+import logic.BuyerRecommender;
+import logic.ConsumptionPredictor;
 import model.Item;
 import model.Purchase;
 
@@ -170,6 +173,38 @@ public class AppData {
             }
         }
         return last;
+    }
+
+    /**
+     * 품목 이름을 소진이 가까운 순서로 정렬해서 반환한다. (가중 이동평균 예측 기준)
+     * 예측할 수 없는 품목(구매 기록 2건 미만)은 등록 순서대로 맨 뒤에 둔다.
+     */
+    public List<String> getItemNamesByUrgency() {
+        List<String> predicted = new ArrayList<>();
+        List<Long> ddays = new ArrayList<>();
+        List<String> lacking = new ArrayList<>();
+
+        for (Item item : items) {
+            List<LocalDate> dates = getSortedDates(item.getName());
+            if (dates.size() < 2) {
+                lacking.add(item.getName());
+                continue;
+            }
+            long dday = ConsumptionPredictor.daysUntil(ConsumptionPredictor.predictWeightedMovingAverage(dates));
+            int index = 0;
+            while (index < ddays.size() && ddays.get(index) <= dday) {
+                index++;
+            }
+            ddays.add(index, dday);
+            predicted.add(index, item.getName());
+        }
+        predicted.addAll(lacking);
+        return predicted;
+    }
+
+    /** 품목별 구매 담당자 추천 결과 (품목 이름 → 추천). 한눈에 보기와 소진 예측 탭이 같은 결과를 쓴다. */
+    public Map<String, BuyerRecommender.Recommendation> getRecommendations() {
+        return BuyerRecommender.recommend(getItemNamesByUrgency(), members, purchases);
     }
 
     /** 해당 룸메이트가 구매자인 미정산 기록 수 */
