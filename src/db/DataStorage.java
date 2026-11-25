@@ -80,7 +80,8 @@ public class DataStorage {
                 case 1146:
                     return "필요한 테이블이 없습니다. sql/schema.sql을 실행하세요.";
                 case 1054:
-                    return "DB 구조가 최신이 아닙니다. sql/add_settled_date.sql을 실행하세요.";
+                    return "DB 구조가 최신이 아닙니다. (purchase 테이블에 settled_date 칸이 없음)\n"
+                            + "MySQL에서 다음을 실행하세요: alter table roommate.purchase add column settled_date date NULL;";
                 default:
                     if (state.startsWith("08")) {
                         return "MySQL 서버에 연결할 수 없습니다. MySQL이 실행 중인지 확인하세요.";

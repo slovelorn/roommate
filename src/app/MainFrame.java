@@ -11,6 +11,9 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.JFrame;
@@ -27,6 +30,7 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
 import db.DataStorage;
+import logic.BuyerRecommender;
 
 /**
  * 프로그램의 메인 창.
@@ -38,12 +42,16 @@ import db.DataStorage;
  * - 시작할 때 연결에 성공하면 상태 표시줄에 성공 알림을, 실패하면 원인과 해결 방법을 담은 오류 창을 띄운다.
  * - 저장에 실패하면 즉시 오류 창을 띄우고, 상태 표시줄에 '저장 안 된 변경 있음'을 표시한다.
  * - 상태 표시줄의 DB 상태를 클릭하거나 [파일 > DB 연결 확인]을 누르면 다시 연결을 확인한다.
+ *
+ * 시작 시 소진 임박 알림
+ * - DB 연결에 성공하면, 소진이 임박한(D-3 이내 또는 예상일 지남) 품목을 추천 담당자와 함께 한 번 알려 준다.
  */
 public class MainFrame extends JFrame {
 
     private static final Color OK_COLOR = new Color(0, 130, 60);
     private static final Color ERROR_COLOR = new Color(200, 30, 30);
     private static final Color OK_BACKGROUND = new Color(220, 245, 225);
+    private static final int WARNING_DAYS = 3;   // D-3 이내면 소진 임박 (한눈에 보기의 빨간색 기준과 동일)
 
     private AppData data;
     private JTabbedPane tabs;
@@ -207,10 +215,45 @@ public class MainFrame extends JFrame {
     private void showStartupConnectionResult() {
         if (data.isLoaded()) {
             showConnected(true);
+            showRunOutAlert();
         } else {
             showDisconnected("DB 연결 안 됨 (클릭해서 다시 연결)", data.getLoadError());
             showConnectionError(data.getLoadError());
         }
+    }
+
+    /**
+     * 시작 시 소진 임박 알림.
+     * 가중 이동평균 기준 D-3 이내이거나 예상일이 지난 품목을 소진이 가까운 순으로 보여 준다.
+     * 임박한 품목이 없으면 알림을 띄우지 않는다.
+     */
+    private void showRunOutAlert() {
+        List<String> imminent = data.getImminentItems(WARNING_DAYS);
+        if (imminent.isEmpty()) {
+            return;
+        }
+        Map<String, BuyerRecommender.Recommendation> recommendations = data.getRecommendations();
+
+        StringBuilder sb = new StringBuilder("곧 떨어질 것으로 예상되는 생필품이 있습니다.\n\n");
+        for (String name : imminent) {
+            long dday = data.getDday(name);
+            LocalDate expected = LocalDate.now().plusDays(dday);
+            sb.append("  - ").append(name).append(" : ");
+            if (dday < 0) {
+                sb.append("예상일 지남 (").append(PredictionPanel.formatDday(dday)).append(", ").append(expected).append(")");
+            } else {
+                sb.append(PredictionPanel.formatDday(dday)).append(" (").append(expected).append(" 예상)");
+            }
+            BuyerRecommender.Recommendation rec = recommendations.get(name);
+            if (rec != null) {
+                sb.append("  →  추천 담당자 : ").append(rec.member);
+            }
+            sb.append("\n");
+        }
+        sb.append("\n자세한 내용은 [한눈에 보기]에서 확인하세요.");
+
+        tabs.setSelectedIndex(0); // 한눈에 보기 탭을 보여 줌
+        JOptionPane.showMessageDialog(this, sb.toString(), "소진 임박 알림", JOptionPane.WARNING_MESSAGE);
     }
 
     /** [DB 연결 확인] 또는 상태 표시줄 클릭 시 */

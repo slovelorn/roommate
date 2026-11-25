@@ -273,13 +273,16 @@ public class PurchasePanel extends JPanel implements Refreshable {
         }
     }
 
-    /** 일반 칸 : 체크한 행은 붉은 배경, 선택 모드에서 정산된 기록은 회색 글씨 */
+    /** 일반 칸 : 금액은 쉼표로 표시, 체크한 행은 붉은 배경, 선택 모드에서 정산된 기록은 회색 글씨 */
     private class RowRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
                                                        boolean hasFocus, int row, int column) {
             super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
             setHorizontalAlignment(value instanceof Integer ? SwingConstants.RIGHT : SwingConstants.LEFT);
+            if (value instanceof Integer) {
+                setText(String.format("%,d", (Integer) value)); // 금액은 세 자리마다 쉼표 (값은 숫자 그대로라 정렬도 숫자 기준)
+            }
             if (!isSelected) {
                 setBackground(isCheckedRow(row) ? CHECKED_BACKGROUND : table.getBackground());
                 setForeground(selectMode && isSettledRow(row) ? SETTLED_FOREGROUND : table.getForeground());

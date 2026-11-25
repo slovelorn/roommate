@@ -202,6 +202,33 @@ public class AppData {
         return predicted;
     }
 
+    /**
+     * 가중 이동평균 예측 기준으로 오늘부터 예상 소진일까지 남은 일수(D-day)를 반환한다.
+     * 음수면 예상일이 지난 것이고, 구매 기록이 2건 미만이라 예측할 수 없으면 null.
+     */
+    public Long getDday(String itemName) {
+        List<LocalDate> dates = getSortedDates(itemName);
+        if (dates.size() < 2) {
+            return null;
+        }
+        return ConsumptionPredictor.daysUntil(ConsumptionPredictor.predictWeightedMovingAverage(dates));
+    }
+
+    /**
+     * 소진 임박 품목 (D-day가 days일 이내이거나 예상일이 지난 품목)을 소진이 가까운 순으로 반환한다.
+     * 시작 시 소진 임박 알림에 사용한다.
+     */
+    public List<String> getImminentItems(int days) {
+        List<String> result = new ArrayList<>();
+        for (String name : getItemNamesByUrgency()) {
+            Long dday = getDday(name);
+            if (dday != null && dday <= days) {
+                result.add(name);
+            }
+        }
+        return result;
+    }
+
     /** 품목별 구매 담당자 추천 결과 (품목 이름 → 추천). 한눈에 보기와 소진 예측 탭이 같은 결과를 쓴다. */
     public Map<String, BuyerRecommender.Recommendation> getRecommendations() {
         return BuyerRecommender.recommend(getItemNamesByUrgency(), members, purchases);
